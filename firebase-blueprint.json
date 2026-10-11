@@ -1,0 +1,37 @@
+{
+  "entities": {
+    "Customer": {
+      "title": "Customer",
+      "description": "Finance customer with loan details and collection history",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique customer ID", "maxLength": 128 },
+        "name": { "type": "string", "description": "Customer full name", "maxLength": 100 },
+        "phone": { "type": "string", "description": "Phone number", "maxLength": 20 },
+        "village": { "type": "string", "description": "Village or area name", "maxLength": 100 },
+        "address": { "type": "string", "description": "Customer address", "maxLength": 250 },
+        "principalAmount": { "type": "number", "description": "Loan principal amount" },
+        "totalPayableAmount": { "type": "number", "description": "Total payable target with interest" },
+        "initialBalance": { "type": "number", "description": "Initial balance amount" },
+        "weeklyDueAmount": { "type": "number", "description": "Weekly installment amount" },
+        "tenureWeeks": { "type": "number", "description": "Number of weeks" },
+        "startDate": { "type": "string", "description": "Loan start date", "maxLength": 30 },
+        "loanType": { "type": "string", "enum": ["weekly", "monthly"], "description": "Type of loan" },
+        "interestRate": { "type": "number", "description": "Interest rate or total profit" },
+        "interestUnit": { "type": "string", "description": "Interest unit", "maxLength": 50 },
+        "transactions": { "type": "array", "description": "List of payments collected" },
+        "status": { "type": "string", "enum": ["active", "closed"], "description": "Loan status" },
+        "ownerId": { "type": "string", "description": "Auth UID of the owner", "maxLength": 128 },
+        "notes": { "type": "string", "description": "Optional notes", "maxLength": 500 },
+        "createdAt": { "type": "string", "description": "Creation timestamp", "maxLength": 50 }
+      },
+      "required": ["id", "name", "phone", "village", "principalAmount", "startDate", "loanType", "status", "ownerId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Customers managed by the logged-in finance owner"
+    }
+  }
+}

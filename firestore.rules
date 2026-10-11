@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidCustomer(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.phone is string && data.phone.size() <= 20
+        && data.village is string && data.village.size() <= 100
+        && data.principalAmount is number && data.principalAmount >= 0
+        && data.startDate is string && data.startDate.size() <= 30
+        && (data.loanType == 'weekly' || data.loanType == 'monthly')
+        && (data.status == 'active' || data.status == 'closed')
+        && data.ownerId == request.auth.uid
+        && data.transactions is list && data.transactions.size() <= 1000;
+    }
+
+    match /users/{userId}/customers/{customerId} {
+      allow get: if isOwner(userId) && isValidId(customerId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidId(customerId)
+        && isValidCustomer(incoming())
+        && incoming().id == customerId;
+      allow update: if isOwner(userId) && isValidId(customerId)
+        && isValidCustomer(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().id == existing().id;
+      allow delete: if isOwner(userId) && isValidId(customerId);
+    }
+  }
+}

@@ -13,12 +13,25 @@ import { AddPaymentModal } from './components/AddPaymentModal';
 import { AddCustomerModal } from './components/AddCustomerModal';
 import { EditCustomerModal } from './components/EditCustomerModal';
 import { SettingsModal } from './components/SettingsModal';
-import { PlusCircle, TrendingUp, Database } from 'lucide-react';
+import { PlusCircle, TrendingUp, Cloud, Sparkles } from 'lucide-react';
+import { 
+  auth, 
+  subscribeToCustomers, 
+  saveCustomerToCloud, 
+  deleteCustomerFromCloud, 
+  syncAllCustomersToCloud, 
+  signOutUser,
+  signInWithGoogle
+} from './firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return localStorage.getItem('brother_finance_is_logged_in') === 'true';
   });
+
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(auth.currentUser);
+  const [isCloudSynced, setIsCloudSynced] = useState<boolean>(false);
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     return getStoredCustomers();
@@ -44,10 +57,50 @@ export default function App() {
   const [paymentCustomerId, setPaymentCustomerId] = useState<string | null>(null);
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
 
-  // Synchronize customers to persistent storage whenever they change
+  // Synchronize customers to persistent storage (offline fallback) whenever they change
   useEffect(() => {
     saveCustomers(customers);
   }, [customers]);
+
+  // Real-time Cloud Firestore synchronization across Laptop and Phone
+  useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      if (user) {
+        setIsLoggedIn(true);
+        localStorage.setItem('brother_finance_is_logged_in', 'true');
+
+        // Subscribe to real-time cloud data
+        const unsubCustomers = subscribeToCustomers(
+          user.uid,
+          (cloudCustomers) => {
+            setIsCloudSynced(true);
+            if (cloudCustomers.length > 0) {
+              setCustomers(cloudCustomers);
+              saveCustomers(cloudCustomers);
+            } else {
+              // If cloud is empty on first setup, migrate local data up to cloud so no data is lost!
+              const local = getStoredCustomers();
+              if (local.length > 0) {
+                syncAllCustomersToCloud(user.uid, local);
+              }
+            }
+          },
+          (err) => {
+            console.error('Cloud Sync Error:', err);
+          }
+        );
+
+        return () => {
+          unsubCustomers();
+        };
+      } else {
+        setIsCloudSynced(false);
+      }
+    });
+
+    return () => unsubAuth();
+  }, []);
 
   // Derived selected customer objects
   const customerForDetail = useMemo(() => {
@@ -130,9 +183,6 @@ export default function App() {
     if (village !== 'all') {
       const villageCustomers = customers.filter((c) => isSameVillage(c.village, village));
 
-      // If the village has customers, check if the currently selected loan type has any matches.
-      // If NOT (e.g. user had 'Weekly' selected, but this village customer has 'Monthly' loan),
-      // auto-reset loan type to 'all' so the customer is NOT hidden!
       if (selectedLoanType !== 'all' && villageCustomers.length > 0) {
         const hasMatchingLoan = villageCustomers.some(
           (c) => (c.loanType || 'weekly') === selectedLoanType
@@ -142,7 +192,6 @@ export default function App() {
         }
       }
 
-      // If active search query filters out all customers in this village, auto-clear search
       if (searchQuery.trim() && villageCustomers.length > 0) {
         const q = searchQuery.toLowerCase().trim();
         const hasMatchingSearch = villageCustomers.some(
@@ -159,15 +208,20 @@ export default function App() {
   };
 
   // Handlers
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localStorage.removeItem('brother_finance_is_logged_in');
     setIsLoggedIn(false);
+    setIsCloudSynced(false);
+    await signOutUser();
   };
 
   const handleUpdateCustomer = (updated: Customer) => {
     setCustomers((prev) =>
       prev.map((c) => (c.id === updated.id ? updated : c))
     );
+    if (firebaseUser) {
+      saveCustomerToCloud(firebaseUser.uid, updated);
+    }
   };
 
   const handleSaveNewCustomer = (
@@ -180,6 +234,9 @@ export default function App() {
       transactions: [],
     };
     setCustomers((prev) => [newCustomer, ...prev]);
+    if (firebaseUser) {
+      saveCustomerToCloud(firebaseUser.uid, newCustomer);
+    }
   };
 
   const handleSavePayment = (
@@ -197,11 +254,15 @@ export default function App() {
         if (c.id === customerId) {
           const updatedTransactions = [...c.transactions, newTx];
           const isSettled = newTx.balanceAfter === 0;
-          return {
+          const updatedCustomer: Customer = {
             ...c,
             status: isSettled ? 'closed' : c.status,
             transactions: updatedTransactions,
           };
+          if (firebaseUser) {
+            saveCustomerToCloud(firebaseUser.uid, updatedCustomer);
+          }
+          return updatedCustomer;
         }
         return c;
       })
@@ -213,16 +274,23 @@ export default function App() {
     setDetailCustomerId(null);
     setEditingCustomerId(null);
     setPaymentCustomerId(null);
+    if (firebaseUser) {
+      deleteCustomerFromCloud(firebaseUser.uid, customerId);
+    }
   };
 
   const handleDeleteTransaction = (customerId: string, txId: string) => {
     setCustomers((prev) =>
       prev.map((c) => {
         if (c.id === customerId) {
-          return {
+          const updatedCustomer: Customer = {
             ...c,
             transactions: c.transactions.filter((tx) => tx.id !== txId),
           };
+          if (firebaseUser) {
+            saveCustomerToCloud(firebaseUser.uid, updatedCustomer);
+          }
+          return updatedCustomer;
         }
         return c;
       })
@@ -244,6 +312,8 @@ export default function App() {
       <Header
         customers={customers}
         viewMode={viewMode}
+        currentUserEmail={firebaseUser?.email || (isLoggedIn ? 'Admin' : null)}
+        isCloudSynced={isCloudSynced}
         onToggleViewMode={setViewMode}
         onOpenAddCustomer={() => setShowAddCustomer(true)}
         onOpenSettings={() => setShowSettings(true)}
@@ -252,6 +322,33 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+        {/* Cloud Sync Connect Banner if user logged in via offline PIN */}
+        {!firebaseUser && (
+          <div className="mb-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-300 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-start gap-2.5">
+              <Cloud className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>லேப்டாப் மற்றும் மொபைலில் நேரடி Cloud Sync-ஐ இணைக்கவும்</span>
+                  <span className="px-1.5 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-bold">New</span>
+                </h4>
+                <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                  நீங்கள் போனில் வசூல் பதிவிட்டாலும், லேப்டாப்பில் உடனுக்குடன் தெரியும். டேட்டா எப்போதும் அழியாமல் கிளவுடில் பாதுகாக்கப்படும்!
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              id="btn-banner-google-sync"
+              onClick={() => signInWithGoogle()}
+              className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Google Sync இணைக்க →</span>
+            </button>
+          </div>
+        )}
+
         {/* Quick Collection Metric Bar (This Week's Collection) */}
         <div className="mb-4 bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-2xs flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -365,7 +462,12 @@ export default function App() {
           customers={customers}
           summary={summary}
           onClose={() => setShowSettings(false)}
-          onDataRestored={(restored) => setCustomers(restored)}
+          onDataRestored={(restored) => {
+            setCustomers(restored);
+            if (firebaseUser) {
+              syncAllCustomersToCloud(firebaseUser.uid, restored);
+            }
+          }}
           onClearAllData={handleClearAllData}
           onLogout={handleLogout}
         />

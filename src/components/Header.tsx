@@ -7,6 +7,8 @@ import { Customer } from '../types';
 interface HeaderProps {
   customers: Customer[];
   viewMode: 'laptop' | 'phone';
+  currentUserEmail?: string | null;
+  isCloudSynced?: boolean;
   onToggleViewMode: (mode: 'laptop' | 'phone') => void;
   onOpenAddCustomer: () => void;
   onOpenSettings: () => void;
@@ -15,6 +17,8 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   viewMode,
+  currentUserEmail,
+  isCloudSynced,
   onToggleViewMode,
   onOpenAddCustomer,
   onOpenSettings,
@@ -29,11 +33,22 @@ export const Header: React.FC<HeaderProps> = ({
             <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <h1 className="text-sm sm:text-lg font-black tracking-tight text-slate-900 truncate">
-              Palaniyandavar Finance
-            </h1>
-            <p className="text-[10px] sm:text-xs text-slate-500 font-semibold">
-              Loan Tracker & Ledger
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm sm:text-lg font-black tracking-tight text-slate-900 truncate">
+                Palaniyandavar Finance
+              </h1>
+              {isCloudSynced && (
+                <span 
+                  title={`Live Cloud Database Sync Active (${currentUserEmail || 'Logged in'})`}
+                  className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                  <span>Cloud Synced</span>
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] sm:text-xs text-slate-500 font-semibold truncate max-w-[200px] sm:max-w-none">
+              {currentUserEmail ? `${currentUserEmail} (Mobile & PC Synced)` : 'Loan Tracker & Ledger'}
             </p>
           </div>
         </div>
