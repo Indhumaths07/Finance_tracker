@@ -1,0 +1,6 @@
+{
+  "name": "Palaniyandavar Finance",
+  "description": "Simple weekly and monthly finance tracking app with customer ledgers, village grouping, interest calculators, and transaction history.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
