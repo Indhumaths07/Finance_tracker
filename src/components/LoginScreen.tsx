@@ -18,12 +18,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     try {
       setIsGoogleLoading(true);
       setError('');
-      await signInWithGoogle();
-      localStorage.setItem('brother_finance_is_logged_in', 'true');
-      onLoginSuccess();
+      const user = await signInWithGoogle();
+      if (user) {
+        localStorage.setItem('brother_finance_is_logged_in', 'true');
+        onLoginSuccess();
+      }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Google Login failed. Please try again.');
+      if (err.code === 'auth/unauthorized-domain') {
+        setError('இந்த URL (domain) Firebase-ல் Authorized Domain ஆக சேர்க்கப்படவில்லை. AI Studio App link-ஐ பயன்படுத்தவும் அல்லது Firebase Console -> Auth -> Settings -> Authorized Domains-ல் உங்கள் domain-ஐ Add செய்யவும்.');
+      } else {
+        setError(err.message || 'Google Login failed. Please try again.');
+      }
     } finally {
       setIsGoogleLoading(false);
     }

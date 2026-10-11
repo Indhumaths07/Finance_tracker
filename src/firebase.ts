@@ -2,6 +2,8 @@ import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   signOut, 
   onAuthStateChanged,
@@ -19,6 +21,9 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import { Customer } from './types';
+
+// Export config details for display in Settings
+export const currentFirebaseConfig = firebaseConfig;
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
@@ -88,14 +93,41 @@ export async function testConnection(): Promise<void> {
 testConnection();
 
 /**
- * 1-Click Google Sign In (Works smoothly on both Mobile and Laptop)
+ * Handle mobile redirect sign in result on app startup
  */
-export async function signInWithGoogle(): Promise<FirebaseUser> {
+export async function checkRedirectResult(): Promise<FirebaseUser | null> {
+  try {
+    const res = await getRedirectResult(auth);
+    return res ? res.user : null;
+  } catch (err) {
+    console.warn('Redirect result check error:', err);
+    return null;
+  }
+}
+
+/**
+ * 1-Click Google Sign In (Works on Mobile and Laptop with redirect fallback)
+ */
+export async function signInWithGoogle(): Promise<FirebaseUser | null> {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (err: any) {
-    console.error('Google Sign-In Error:', err);
+    console.warn('Google Popup sign-in error:', err?.code, err?.message);
+    // On mobile devices where popups are blocked by Chrome / Safari, fallback to redirect
+    if (
+      err.code === 'auth/popup-blocked' ||
+      err.code === 'auth/cancelled-popup-request' ||
+      err.code === 'auth/popup-closed-by-user'
+    ) {
+      try {
+        await signInWithRedirect(auth, googleProvider);
+        return null;
+      } catch (redirErr) {
+        console.error('Redirect sign-in error:', redirErr);
+        throw redirErr;
+      }
+    }
     throw err;
   }
 }

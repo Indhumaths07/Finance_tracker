@@ -2,7 +2,8 @@ import React, { useRef, useMemo, useState } from 'react';
 import { 
   X, Settings, TrendingUp, Download, Upload, Trash2, LogOut, Calendar, 
   CheckCircle2, Filter, Search, Share2, ArrowRight, FileSpreadsheet,
-  Wallet, Coins, ArrowUpRight, DollarSign, PiggyBank, Users
+  Wallet, Coins, ArrowUpRight, DollarSign, PiggyBank, Users,
+  Cloud, RefreshCw, AlertCircle, ExternalLink, Sparkles
 } from 'lucide-react';
 import { Customer, DashboardSummary } from '../types';
 import { 
@@ -15,6 +16,9 @@ import {
 interface SettingsModalProps {
   customers: Customer[];
   summary: DashboardSummary;
+  currentUserEmail?: string | null;
+  isCloudSynced?: boolean;
+  onForceSyncCloud?: () => void;
   onClose: () => void;
   onDataRestored: (customers: Customer[]) => void;
   onClearAllData: () => void;
@@ -24,6 +28,9 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   customers,
   summary,
+  currentUserEmail,
+  isCloudSynced,
+  onForceSyncCloud,
   onClose,
   onDataRestored,
   onClearAllData,
@@ -535,7 +542,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm sm:text-base font-black text-slate-900">
-                    Backup & Restore (பேக்கப் & மீட்டமைத்தல்)
+                    Cloud Database, Backup & Restore
                   </h3>
                 </div>
               </div>
@@ -546,6 +553,76 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
+            {/* FIREBASE CLOUD DATABASE STATUS CARD */}
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border-2 border-emerald-200 space-y-3 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${isCloudSynced ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    <Cloud className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                      Firebase Cloud Database (நிரந்தர கிளவுட் சேமிப்பு)
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Database: <span className="font-mono text-emerald-800 font-bold">ai-studio-palaniyandavarfi</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {isCloudSynced ? (
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                      <span>Connected & Synced</span>
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5">
+                      <span>Offline Mode</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="text-xs text-slate-700 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-1 p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-slate-600 font-medium">இணைக்கப்பட்டுள்ள கணக்கு (Account):</span>
+                  <span className="font-bold text-slate-900 font-mono">
+                    {currentUserEmail || 'Offline (admin/123) - Google Login தேவை'}
+                  </span>
+                </div>
+
+                {onForceSyncCloud && (
+                  <button
+                    type="button"
+                    onClick={onForceSyncCloud}
+                    className="w-full py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>தற்போதைய அனைத்து தரவுகளையும் Firebase-ல் Sync செய்க (Sync Now)</span>
+                  </button>
+                )}
+
+                {/* Helpful instructions for Phone vs Laptop sync */}
+                <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-1.5 text-[11px] text-indigo-950 leading-relaxed">
+                  <span className="font-bold flex items-center gap-1.5 text-indigo-900">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>லேப்டாப் மற்றும் போனில் ஒரே நேரத்தில் Sync செய்வது எப்படி?</span>
+                  </span>
+                  <ol className="list-decimal list-inside space-y-1 pl-1 text-slate-700">
+                    <li>
+                      உங்கள் லேப்டாப் மற்றும் போன் இரண்டிலும் <strong>ஒரே Google கணக்கு ({currentUserEmail || 'Gmail'})</strong> மூலம் உள்நுழையவும்.
+                    </li>
+                    <li>
+                      சாதா <code className="bg-white px-1 py-0.5 rounded border border-slate-200 font-mono text-slate-700">admin / 123</code> என்பது அந்த சாதனத்திற்கான ஆஃப்லைன் லாகின் மட்டுமே.
+                    </li>
+                    <li>
+                      ஒரே Google கணக்கில் லாகின் செய்தால், போனில் வசூல் பதிவிடும் ஒவ்வொரு முறையும் லேப்டாப்பில் உடனுக்குடன் தானாகவே மாறிவிடும்!
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            </div>
 
             {/* 1-CLICK BACKUP DOWNLOAD */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-3 shadow-xs">

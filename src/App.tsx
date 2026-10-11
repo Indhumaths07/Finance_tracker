@@ -21,7 +21,8 @@ import {
   deleteCustomerFromCloud, 
   syncAllCustomersToCloud, 
   signOutUser,
-  signInWithGoogle
+  signInWithGoogle,
+  checkRedirectResult
 } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 
@@ -64,6 +65,8 @@ export default function App() {
 
   // Real-time Cloud Firestore synchronization across Laptop and Phone
   useEffect(() => {
+    checkRedirectResult().catch(() => {});
+
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
       if (user) {
@@ -461,6 +464,12 @@ export default function App() {
         <SettingsModal
           customers={customers}
           summary={summary}
+          currentUserEmail={firebaseUser?.email || null}
+          isCloudSynced={isCloudSynced}
+          onForceSyncCloud={firebaseUser ? async () => {
+            await syncAllCustomersToCloud(firebaseUser.uid, customers);
+            alert('அனைத்து தரவுகளும் Firebase Cloud-ல் வெற்றிகரமாக Sync செய்யப்பட்டது!');
+          } : undefined}
           onClose={() => setShowSettings(false)}
           onDataRestored={(restored) => {
             setCustomers(restored);
